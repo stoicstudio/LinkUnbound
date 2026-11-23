@@ -46,9 +46,10 @@ pub use rule::{
 pub use star::{Asking, asking};
 pub use store::{Store, StoreError, data_dir, seconds_now, unmarked};
 pub use url::{
-    OWN_SCHEME, host_of, is_launchable, is_own_scheme, local_file_parts, local_web_file,
-    local_web_file_extensions, looks_unresolved, normalise, unwrap_edge_protocol,
-    unwrap_own_scheme, unwrap_safe_link,
+    OWN_SCHEME, first_segment_path, host_of, is_launchable, is_own_scheme, is_scheme,
+    local_file_parts, local_web_file, local_web_file_extensions, looks_unresolved, normalise,
+    path_scope, step_path, under_path, unwrap_edge_protocol, unwrap_own_scheme, unwrap_safe_link,
+    whole_path,
 };
 
 #[cfg(test)]

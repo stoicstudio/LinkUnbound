@@ -2,6 +2,7 @@
 
 slint::include_modules!();
 
+pub mod foot;
 pub mod hotkey;
 pub mod place;
 pub mod single;
@@ -12,7 +13,8 @@ use std::rc::Rc;
 
 use linkunbound_core::update::{Looked, Progress, ShopSaid};
 use linkunbound_core::{
-    Browser, Scope, Strings, host_of, is_public_suffix, local_file_parts, looks_unresolved, site_of,
+    Browser, Scope, Strings, first_segment_path, host_of, is_public_suffix, local_file_parts,
+    looks_unresolved, site_of,
 };
 
 /// Both windows read the same palette, so the choice is applied once per window
@@ -50,6 +52,8 @@ pub enum Reaches {
     Url,
     Host,
     Site,
+    /// Everything under the link's host and first segment, or under the path typed in its place.
+    Path,
     /// Every link from the app the click came from, whatever the address. What
     /// the user means by ticking it on a link that arrived from Slack.
     FromApp,
@@ -63,6 +67,7 @@ impl Reaches {
             Self::Url => Some(Scope::Url(url.to_owned())),
             Self::Host => Some(Scope::Host(host.to_owned())),
             Self::Site => Some(Scope::Site(site_of(host))),
+            Self::Path => first_segment_path(url).map(Scope::Path),
             Self::FromApp => Some(Scope::Any),
         }
     }
@@ -80,7 +85,8 @@ impl Reaches {
             1 => Self::Url,
             2 => Self::Host,
             3 => Self::Site,
-            4 => Self::FromApp,
+            4 => Self::Path,
+            5 => Self::FromApp,
             _ => Self::Once,
         }
     }
@@ -161,6 +167,7 @@ pub fn reaches(
             wrapped || is_public_suffix(site),
         ),
     ];
+    offered.push(foot::said(words, url, wrapped));
     // Left out rather than greyed when there is no origin: a dead label would cost the live
     // ones their space.
     if let Some(source) = source {
@@ -193,30 +200,13 @@ impl Said {
     }
 }
 
-/// The four the track shows, in the order it shows them. Only the app the link came from goes
+/// The five the track shows, in the order it shows them. Only the app the link came from goes
 /// behind «More»: its label carries a name no fixed width can be drawn for.
-pub const IN_THE_ROW: [i32; 4] = [0, 3, 1, 2];
+pub const IN_THE_ROW: [i32; 5] = [0, 3, 4, 1, 2];
 
 #[must_use]
 pub fn in_the_row(index: i32) -> bool {
     IN_THE_ROW.contains(&index)
-}
-
-/// Where the keys land next, stepping over the reaches that are dead for this link: only the
-/// pointer was kept off them, and a rule written on one covered every site the wrapper serves.
-/// Stays put when nothing live lies that way.
-#[must_use]
-pub fn next_live(dead: &[bool], from: i32, delta: i32) -> i32 {
-    let mut at = from;
-    loop {
-        at += delta;
-        let Some(is_dead) = usize::try_from(at).ok().and_then(|i| dead.get(i)) else {
-            return from;
-        };
-        if !is_dead {
-            return at;
-        }
-    }
 }
 
 /// The strip atop the picker, worded. `None` is no strip: the copy is current, the offer was
@@ -427,6 +417,7 @@ pub fn dress(window: &Picker, words: &Strings, url: &str, source: Option<&str>, 
     window.set_more_open(false);
     window.set_copied(false);
     window.set_reach_index(0);
+    foot::dress(window, words, url);
     let wrapped = looks_unresolved(url);
     window.set_alarming(!wrapped);
     window.set_problem(if wrapped {
@@ -792,7 +783,7 @@ mod tests {
         window.set_reach_index(3);
         assert_eq!(window.get_reach_said(), words.remember_site);
 
-        window.set_reach_index(4);
+        window.set_reach_index(5);
         assert_eq!(window.get_reach_said(), "Recordar desde Slack");
     }
 
@@ -1055,12 +1046,12 @@ mod tests {
         );
         assert_eq!(
             window.get_reach_labels().row_count(),
-            5,
-            "the arrows walk all five, not the two on show"
+            6,
+            "the arrows walk all six, not only the ones on show"
         );
 
         dress(&window, &words, "https://docs.google.com/a", None, &rows);
-        assert_eq!(window.get_reach_labels().row_count(), 4);
+        assert_eq!(window.get_reach_labels().row_count(), 5);
     }
 
     /// The index is the whole contract between the window and the rule that gets written: the row
@@ -1085,13 +1076,13 @@ mod tests {
 
         let row = window.get_reaches();
         let menu = window.get_reaches_more();
-        assert_eq!(row.row_count(), 4);
+        assert_eq!(row.row_count(), 5);
         assert_eq!(menu.row_count(), 1);
         let order: Vec<i32> = row.iter().map(|one| one.index).collect();
         assert_eq!(
             order,
-            vec![0, 3, 1, 2],
-            "once, the whole site, this URL, the subdomain"
+            vec![0, 3, 4, 1, 2],
+            "once, the whole site, the path, this URL, the subdomain"
         );
 
         let mut seen: Vec<(i32, String)> = row
@@ -1108,7 +1099,8 @@ mod tests {
                 (1, words.reach_url.to_owned()),
                 (2, words.reach_subdomain.to_owned()),
                 (3, words.reach_site.to_owned()),
-                (4, Strings::fill(words.reach_from_app, "ms-teams")),
+                (4, words.reach_path.to_owned()),
+                (5, Strings::fill(words.reach_from_app, "ms-teams")),
             ],
             "every reach kept the number Reaches::at reads"
         );
@@ -1131,11 +1123,11 @@ mod tests {
             &rows,
         );
 
-        for at in [0, 1, 2, 3] {
+        for at in [0, 1, 2, 3, 4] {
             window.set_reach_index(at);
             assert!(!window.get_more_holds(), "{at} is drawn in the row");
         }
-        window.set_reach_index(4);
+        window.set_reach_index(5);
         assert!(
             window.get_more_holds(),
             "the origin is only behind the opener"
@@ -1186,8 +1178,8 @@ mod tests {
         let offered = window.get_reaches();
         assert_eq!(
             offered.row_count(),
-            4,
-            "the row shows four and keeps the origin behind More"
+            5,
+            "the row shows five and keeps the origin behind More"
         );
         assert_eq!(offered.row_data(0).expect("first").label, words.reach_once);
         assert_eq!(
@@ -1206,7 +1198,7 @@ mod tests {
         );
         assert_eq!(
             window.get_reaches().row_count() + window.get_reaches_more().row_count(),
-            5,
+            6,
             "the origin reach joins the ones behind the opener"
         );
 
@@ -1265,24 +1257,6 @@ mod tests {
         assert!(!own[3].dead);
     }
 
-    /// A wrapper nobody could unwrap leaves three reaches dead; the arrows used to land on them
-    /// anyway, and «1» then wrote a rule for everything the wrapper serves.
-    #[test]
-    fn the_keys_step_over_the_dead_reaches_and_stay_put_at_the_ends() {
-        use super::next_live;
-        let wrapped = [false, true, true, true, false];
-        assert_eq!(next_live(&wrapped, 0, 1), 4, "straight to the origin reach");
-        assert_eq!(next_live(&wrapped, 4, -1), 0);
-        assert_eq!(next_live(&wrapped, 4, 1), 4, "nothing beyond");
-        assert_eq!(next_live(&wrapped, 0, -1), 0);
-        let no_origin = [false, true, true, true];
-        assert_eq!(next_live(&no_origin, 0, 1), 0, "every other reach is dead");
-        let plain = [false, false, true, false];
-        assert_eq!(next_live(&plain, 1, 1), 3, "the same-site reach is skipped");
-        assert_eq!(next_live(&plain, 3, -1), 1);
-        assert_eq!(next_live(&[], 0, 1), 0);
-    }
-
     #[test]
     fn the_reaches_are_worded_in_the_language_they_are_asked_for() {
         let spanish = reaches(&SPOKEN, PLAIN, "github.com", "github.com", None);
@@ -1303,11 +1277,11 @@ mod tests {
     #[test]
     fn the_origin_reach_covers_any_address_and_only_that_app() {
         assert_eq!(
-            Reaches::at(4).scope("https://github.com/a", "github.com"),
+            Reaches::at(5).scope("https://github.com/a", "github.com"),
             Some(Scope::Any)
         );
-        assert!(Reaches::at(4).binds_to_the_source());
-        for other in [0, 1, 2, 3] {
+        assert!(Reaches::at(5).binds_to_the_source());
+        for other in [0, 1, 2, 3, 4] {
             assert!(
                 !Reaches::at(other).binds_to_the_source(),
                 "reach {other} must answer whatever app produced the link"
@@ -1327,22 +1301,22 @@ mod tests {
             "outlook.com",
             Some("teams"),
         );
-        assert_eq!(known.len(), 5);
+        assert_eq!(known.len(), 6);
         assert!(
-            !known[4].dead,
+            !known[5].dead,
             "a wrapper does not disable the origin reach"
         );
         assert!(
-            known[4].label.contains("teams"),
+            known[5].label.contains("teams"),
             "it names the app: {}",
-            known[4].label
+            known[5].label
         );
 
         let unknown = reaches(&SPOKEN, PLAIN, "github.com", "github.com", None);
         assert_eq!(
             unknown.len(),
-            4,
-            "five labels do not fit the row, so with no origin it is left out"
+            5,
+            "with no origin, the origin reach is left out"
         );
     }
 

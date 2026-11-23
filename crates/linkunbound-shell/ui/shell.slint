@@ -25,11 +25,25 @@ export component Picker inherits Window {
     in property <[string]> reach-labels;
     in property <string> reach-more-label;
     in property <string> reaches-line;
-    in property <string> problem;
+    in-out property <string> problem;
     in property <bool> alarming: true;
     in-out property <int> reach-index: 0;
     in-out property <bool> private-on: false;
     in-out property <bool> more-open: false;
+    // The path reach's value, offered from the link and open to a correction typed in the foot.
+    in-out property <string> path-value;
+    in-out property <bool> path-editing: false;
+    in-out property <bool> path-bad: false;
+    in property <string> path-edit-label;
+    // The link's host and whole path: as far as + can go.
+    in property <string> path-whole;
+    in property <string> path-refusal;
+    // What the field opened on, put back by Escape or by choosing another reach.
+    in-out property <string> path-before;
+    // The typed path, tidied, or empty when it is not one or does not cover the link.
+    pure callback path-check(string, string) -> string;
+    // The path one segment longer (1) or shorter (-1) along the link, or empty when none is left.
+    pure callback path-step(string, string, int) -> string;
     // The row the arrows rest on, opened by Enter; none until an arrow is pressed.
     in-out property <int> chosen-at: -1;
     // Shown from settings over a sample link: a choice puts it away and opens nothing.
@@ -98,6 +112,21 @@ export component Picker inherits Window {
         : ((root.aimed + 0.5) / max(1, root.count) - 0.5) * 2;
     changed aim => { root.mood(root.aim, root.private-on); }
     changed private-on => { root.mood(root.aim, root.private-on); }
+    // Another reach closes the field and puts back the path it opened on; the keys come back.
+    changed reach-index => {
+        if (root.path-editing) {
+            root.path-value = root.path-before;
+            root.path-editing = false;
+        }
+        root.mend-path();
+    }
+    changed path-editing => { if (!root.path-editing) { keys.focus(); } }
+    function mend-path() {
+        root.path-bad = false;
+        if (root.problem == root.path-refusal) {
+            root.problem = "";
+        }
+    }
 
     property <string> line: root.problem != "" ? root.problem : (root.private-on ? root.private-line : root.source-line);
     property <brush> line-color: root.problem != "" ? (root.alarming ? Palette.wrong : Palette.caution) : (root.private-on ? Palette.secret : Palette.dim);
@@ -107,7 +136,7 @@ export component Picker inherits Window {
     // Nine rows at most on screen and the rest scroll under them.
     property <float> rows-shown: min(root.count, 9);
     property <length> list-room: max(1, root.rows-shown) * 45px + 11px;
-    // A fifth reach appears when the click came from a known app, and its label carries that
+    // A sixth reach appears when the click came from a known app, and its label carries that
     // app's name, which no fixed width can be drawn for: the track asks for the room it needs.
     property <length> track-need: ruler.preferred-width + 60px + root.reaches.length * 18px;
     property <length> list-width: min(max(380px, root.track-need), 560px);
@@ -378,6 +407,33 @@ export component Picker inherits Window {
                 Hair {}
                 RememberFoot {
                     label: root.remember-label;
+                    path-on: root.reach-index == 4; // Reaches::Path
+                    path-value <=> root.path-value;
+                    path-editing <=> root.path-editing;
+                    path-bad <=> root.path-bad;
+                    path-before <=> root.path-before;
+                    edit-label: root.path-edit-label;
+                    path-longer: root.path-step(root.path-value, root.path-whole, 1);
+                    path-shorter: root.path-step(root.path-value, root.path-whole, -1);
+                    path-typed(said) => {
+                        let tidy = root.path-check(said, root.path-whole);
+                        if (tidy == "") {
+                            root.path-bad = true;
+                            root.problem = root.path-refusal;
+                        } else {
+                            root.path-value = tidy;
+                            root.mend-path();
+                            root.path-editing = false;
+                        }
+                    }
+                    path-left => {
+                        root.mend-path();
+                        root.path-editing = false;
+                    }
+                    path-stepped(to) => {
+                        root.path-value = to;
+                        root.mend-path();
+                    }
                     reaches: root.reaches;
                     has-more: root.reaches-more.length > 0;
                     more-said: root.more-said;

@@ -1106,16 +1106,7 @@ fn main() -> Result<(), slint::PlatformError> {
                 .is_some()
         });
     }
-    {
-        let handle = picker.as_weak();
-        picker.on_step_reach(move |delta| {
-            let Some(window) = handle.upgrade() else {
-                return 0;
-            };
-            let dead: Vec<bool> = window.get_all_reaches().iter().map(|r| r.dead).collect();
-            linkunbound_shell::next_live(&dead, window.get_reach_index(), delta)
-        });
-    }
+    linkunbound_shell::foot::wire(&picker);
     {
         let handle = picker.as_weak();
         let shown = Rc::clone(&shown);
@@ -1135,6 +1126,9 @@ fn main() -> Result<(), slint::PlatformError> {
             let reach = if dead { Reaches::Once } else { Reaches::at(at) };
             let held = shown.borrow();
             let Some(url) = held.url.clone() else { return };
+            let Some(path) = linkunbound_shell::foot::kept(&window, reach, &url) else {
+                return;
+            };
             let source = held.source.clone();
             let Some(chosen) = held.rows.get(usize::try_from(index).unwrap_or(0)) else {
                 return;
@@ -1156,7 +1150,7 @@ fn main() -> Result<(), slint::PlatformError> {
                         ui.launched_at.set(Some(std::time::Instant::now()));
                     }
                     let words = ui().map(|ui| ui.words.get());
-                    if kept::remember(&url, chosen, private, reach, source) {
+                    if kept::remember(&url, chosen, private, reach, source, path) {
                         look::put_away(&window);
                         drop(held);
                         if let Some(words) = words {

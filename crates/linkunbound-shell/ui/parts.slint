@@ -556,6 +556,32 @@ export component AskHead inherits Rectangle {
     }
 }
 
+// A small square that lengthens or shortens the path reach by one segment.
+component PathStep inherits Rectangle {
+    in property <string> said;
+    in property <bool> open;
+    callback stepped();
+    width: 15px;
+    height: 15px;
+    horizontal-stretch: 0;
+    border-radius: 3px;
+    border-width: 1px;
+    border-color: !root.open ? transparent : touch.has-hover ? Palette.brand : Palette.faint;
+    Text {
+        text: root.said;
+        font-size: 12px;
+        font-weight: 600;
+        color: !root.open ? Palette.faint.transparentize(0.6) : touch.has-hover ? Palette.ink : Palette.dim;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+    touch := TouchArea {
+        enabled: root.open;
+        mouse-cursor: root.open ? pointer : default;
+        clicked => { root.stepped(); }
+    }
+}
+
 // «Recordar»: the reaches in a segmented track, the rest behind «Más».
 export component RememberFoot inherits Rectangle {
     in property <string> label;
@@ -565,8 +591,20 @@ export component RememberFoot inherits Rectangle {
     in property <bool> more-holds;
     in property <bool> more-open;
     in property <int> reach-index;
+    in property <bool> path-on;
+    in-out property <string> path-value;
+    in-out property <bool> path-editing;
+    in-out property <bool> path-bad;
+    in property <string> edit-label;
+    // The path a step longer or shorter, empty when that way is closed.
+    in property <string> path-longer;
+    in property <string> path-shorter;
     callback picked(int);
     callback more();
+    callback path-typed(string);
+    callback path-left();
+    callback path-stepped(string);
+    in-out property <string> path-before;
     height: 74px;
 
     VerticalLayout {
@@ -575,12 +613,84 @@ export component RememberFoot inherits Rectangle {
         padding-top: 10px;
         padding-bottom: 12px;
         spacing: 7px;
-        Text {
-            text: root.label;
-            font-size: 11px;
-            font-weight: 600;
-            color: Palette.faint;
-            x: 4px;
+        HorizontalLayout {
+            padding-left: 4px;
+            spacing: 6px;
+            height: 15px;
+            Text {
+                text: root.label;
+                font-size: 11px;
+                font-weight: 600;
+                color: Palette.faint;
+                vertical-alignment: center;
+                horizontal-stretch: 0;
+            }
+            if root.path-on && !root.path-editing: Text {
+                text: root.path-value;
+                font-size: 11px;
+                font-weight: 600;
+                color: Palette.brand;
+                vertical-alignment: center;
+                overflow: elide;
+                horizontal-stretch: 1;
+            }
+            if root.path-on && !root.path-editing: PathStep {
+                said: "−";
+                open: root.path-shorter != "";
+                stepped => { root.path-stepped(root.path-shorter); }
+            }
+            if root.path-on && !root.path-editing: PathStep {
+                said: "+";
+                open: root.path-longer != "";
+                stepped => { root.path-stepped(root.path-longer); }
+            }
+            if root.path-on && !root.path-editing: Text {
+                text: root.edit-label;
+                font-size: 11px;
+                color: edit-touch.has-hover ? Palette.ink : Palette.dim;
+                vertical-alignment: center;
+                horizontal-stretch: 0;
+                edit-touch := TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => {
+                        root.path-before = root.path-value;
+                        root.path-editing = true;
+                    }
+                }
+            }
+            if root.path-on && root.path-editing: Rectangle {
+                horizontal-stretch: 1;
+                border-width: 1px;
+                border-radius: 3px;
+                border-color: root.path-bad ? Palette.wrong : Palette.brand;
+                FocusScope {
+                    // Escape puts the path back and keeps the picker; Enter keeps the typed one.
+                    // Tab stays in the field rather than walking the reaches under it.
+                    key-pressed(event) => {
+                        if (event.text == Key.Escape) {
+                            root.path-value = root.path-before;
+                            root.path-left();
+                            return accept;
+                        }
+                        return event.text == Key.Tab || event.text == Key.Backtab ? accept : reject;
+                    }
+                    field := TextInput {
+                        x: 4px;
+                        width: parent.width - 8px;
+                        text <=> root.path-value;
+                        font-size: 11px;
+                        color: Palette.ink;
+                        vertical-alignment: center;
+                        single-line: true;
+                        init => {
+                            self.focus();
+                            self.select-all();
+                        }
+                        accepted => { root.path-typed(self.text); }
+                    }
+                }
+            }
+            if !root.path-on: Rectangle { horizontal-stretch: 1; }
         }
         Rectangle {
             height: 32px;

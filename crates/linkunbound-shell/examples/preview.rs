@@ -190,15 +190,7 @@ fn main() -> Result<(), slint::PlatformError> {
             true
         });
     }
-    {
-        let handle = window.as_weak();
-        window.on_step_reach(move |delta| {
-            use slint::Model;
-            let Some(w) = handle.upgrade() else { return 0 };
-            let dead: Vec<bool> = w.get_all_reaches().iter().map(|r| r.dead).collect();
-            linkunbound_shell::next_live(&dead, w.get_reach_index(), delta)
-        });
-    }
+    linkunbound_shell::foot::wire(&window);
 
     if flag("--notice") {
         use linkunbound_core::Strings;

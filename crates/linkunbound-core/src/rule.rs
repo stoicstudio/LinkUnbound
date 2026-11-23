@@ -70,6 +70,8 @@ pub enum Scope {
     Url(String),
     Host(String),
     Site(String),
+    /// A host and the path segments every covered address starts with, as `github.com/rust-lang`.
+    Path(String),
 }
 
 impl Scope {
@@ -83,6 +85,7 @@ impl Scope {
                 let d = d.trim_end_matches('.');
                 host == d || host.strip_suffix(d).is_some_and(|p| p.ends_with('.'))
             }
+            Self::Path(p) => crate::url::under_path(url, p),
         }
     }
 
@@ -92,6 +95,7 @@ impl Scope {
             Self::Any => 0,
             Self::Site(d) => 1_000 + d.len() as u64,
             Self::Host(h) => 100_000 + h.len() as u64,
+            Self::Path(p) => 1_000_000 + p.len() as u64,
             Self::Url(u) => 10_000_000 + u.len() as u64,
         }
     }
@@ -157,6 +161,7 @@ impl Rule {
             Scope::Url(u) => format!("url:{u}"),
             Scope::Host(h) => format!("host:{h}"),
             Scope::Site(d) => format!("site:{d}"),
+            Scope::Path(p) => format!("path:{p}"),
         };
         match &self.source_app {
             Some(app) => format!("{scope}@{}", app.to_ascii_lowercase()),
@@ -268,6 +273,72 @@ impl RuleSet {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_path_rule_covers_its_segments_and_whatever_lies_under_them() {
+        let org = Scope::Path("github.com/rust-lang".to_owned());
+        for (url, covered) in [
+            ("https://github.com/rust-lang", true),
+            ("https://github.com/rust-lang/", true),
+            ("https://github.com/rust-lang/rust/pull/1", true),
+            ("https://github.com/Rust-Lang/rust", true),
+            ("https://github.com/rust-lang?tab=repositories", true),
+            ("https://github.com/rust-lang-nursery", false),
+            ("https://github.com/rust", false),
+            ("https://github.com/", false),
+            ("https://gist.github.com/rust-lang", false),
+            ("https://github.com.evil.test/rust-lang", false),
+        ] {
+            let host = crate::url::host_of(url).expect("a host");
+            assert_eq!(org.matches(url, &host), covered, "{url}");
+        }
+    }
+
+    #[test]
+    fn a_path_rule_outranks_its_host_and_gives_way_to_an_exact_address() {
+        let set = RuleSet {
+            schema_version: 2,
+            rules: vec![
+                rule("site", Scope::Site("github.com".to_owned()), None, "edge"),
+                rule(
+                    "path",
+                    Scope::Path("github.com/a".to_owned()),
+                    None,
+                    "chrome",
+                ),
+                rule(
+                    "deeper",
+                    Scope::Path("github.com/a/b".to_owned()),
+                    None,
+                    "brave",
+                ),
+                rule(
+                    "host",
+                    Scope::Host("github.com".to_owned()),
+                    None,
+                    "firefox",
+                ),
+                rule(
+                    "url",
+                    Scope::Url("https://github.com/a/c".to_owned()),
+                    None,
+                    "safari",
+                ),
+            ],
+        };
+        let fired = |url: &str| {
+            set.resolve(url, "github.com", None)
+                .map(|r| r.target.browser_id.as_str())
+        };
+        assert_eq!(fired("https://github.com/a/x"), Some("chrome"));
+        assert_eq!(
+            fired("https://github.com/a/b/x"),
+            Some("brave"),
+            "the longer path wins"
+        );
+        assert_eq!(fired("https://github.com/a/c"), Some("safari"));
+        assert_eq!(fired("https://github.com/z"), Some("firefox"));
+    }
+
     #[test]
     fn an_app_name_is_the_same_name_in_any_case_and_any_alphabet() {
         assert!(super::same_name("Übersicht", "übersicht"));

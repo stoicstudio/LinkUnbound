@@ -111,6 +111,107 @@ pub fn same_address(a: &str, b: &str) -> bool {
     }
 }
 
+/// A link's host and its non-empty path segments, lowercased: all a path rule compares. The port
+/// is left out, as host and site rules leave it out.
+fn host_and_segments(url: &Url) -> Option<(String, Vec<String>)> {
+    let host = url.host_str()?.to_owned();
+    let segments = url
+        .path_segments()?
+        .filter(|s| !s.is_empty())
+        .map(str::to_ascii_lowercase)
+        .collect();
+    Some((host, segments))
+}
+
+fn joined(host: &str, segments: &[String]) -> Option<String> {
+    (!segments.is_empty()).then(|| format!("{host}/{}", segments.join("/")))
+}
+
+/// The path the picker offers for a link: its host and first segment, so
+/// `https://github.com/rust-lang/rust/pull/1` offers `github.com/rust-lang`.
+#[must_use]
+pub fn first_segment_path(raw: &str) -> Option<String> {
+    let (host, segments) = host_and_segments(&parsed(raw)?)?;
+    joined(&host, segments.get(..1)?)
+}
+
+/// The link's host and every segment of its path, the deepest a path rule can reach for it.
+#[must_use]
+pub fn whole_path(raw: &str) -> Option<String> {
+    let (host, segments) = host_and_segments(&parsed(raw)?)?;
+    joined(&host, &segments)
+}
+
+/// One segment more (`delta` 1) or fewer (-1) of `current`, taking the next one from `whole`,
+/// the link's own path. A path typed away from the link can still lose segments, never gain them.
+/// `None` when no step is left: one segment, or the whole link already.
+#[must_use]
+pub fn step_path(current: &str, whole: &str, delta: i32) -> Option<String> {
+    let split = |p: &str| {
+        let p = path_scope(p)?;
+        let (host, rest) = p.split_once('/')?;
+        Some((
+            host.to_owned(),
+            rest.split('/').map(str::to_owned).collect::<Vec<_>>(),
+        ))
+    };
+    let (host, have) = split(current)?;
+    let on_link = split(whole)
+        .filter(|(h, all)| *h == host && all.starts_with(&have))
+        .map(|(_, all)| all);
+    let from = on_link.as_deref().unwrap_or(&have);
+    let wanted = have
+        .len()
+        .checked_add_signed(isize::try_from(delta).ok()?)?;
+    (wanted >= 1 && wanted <= from.len() && wanted != have.len())
+        .then(|| format!("{host}/{}", from[..wanted].join("/")))
+}
+
+/// A path rule's value from what a person typed, in the one spelling every rule for it shares:
+/// the scheme and port dropped, the host read as a link's host is, `.` and `..` resolved, empty
+/// segments gone, lowercased. `None` without a path, or with a query, fragment, credentials or
+/// wildcard anywhere.
+#[must_use]
+pub fn path_scope(said: &str) -> Option<String> {
+    let said = said.trim();
+    let bare = match said.split_once("://") {
+        Some((scheme, rest)) if is_scheme(scheme) => rest,
+        _ => said,
+    };
+    let (host_part, path) = bare.split_once('/')?;
+    if host_part.is_empty()
+        || host_part.contains(['?', '#', '@', '*', '\\'])
+        || path.contains(['?', '#'])
+    {
+        return None;
+    }
+    let (host, segments) = host_and_segments(&parsed(&format!("https://{host_part}/{path}"))?)?;
+    joined(&host, &segments)
+}
+
+/// Only a scheme at the very start makes it a link: `a.com/?next=https://b.com` is a.com.
+#[must_use]
+pub fn is_scheme(said: &str) -> bool {
+    said.starts_with(|c: char| c.is_ascii_alphabetic())
+        && said
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '+' | '-' | '.'))
+}
+
+/// Whether `url` is on the host of `prefix` (`host/segment/...`) and starts with its segments,
+/// whole and without case: `github.com/a` covers `github.com/A/b`, never `github.com/ab`. The
+/// port is not compared, as a host rule does not compare it.
+#[must_use]
+pub fn under_path(url: &str, prefix: &str) -> bool {
+    let read = |raw: &str| parsed(raw).as_ref().and_then(host_and_segments);
+    let (Some((host, have)), Some((wanted, need))) =
+        (read(url), read(&format!("https://{prefix}")))
+    else {
+        return false;
+    };
+    host == wanted && !need.is_empty() && have.starts_with(&need)
+}
+
 /// The canonical host as the browser will resolve it: punycode, lowercased, and
 /// agreeing with WHATWG on backslashes, credentials and IPv6 literals. Anything
 /// else routes a link by one host while the browser opens another.
@@ -768,5 +869,95 @@ mod tests {
                 assert!(local_web_file(Path::new(raw)).is_none(), "{raw}");
             }
         }
+    }
+
+    #[test]
+    fn the_picker_offers_the_first_segment_and_a_typed_path_is_tidied() {
+        assert_eq!(
+            first_segment_path("https://vercel.com/Trozl/m4500-twin/settings").as_deref(),
+            Some("vercel.com/trozl")
+        );
+        assert_eq!(first_segment_path("https://vercel.com/"), None);
+        assert_eq!(first_segment_path("https://vercel.com"), None);
+        for (said, kept) in [
+            (
+                " https://Vercel.com//trozl/m4500-twin/ ",
+                Some("vercel.com/trozl/m4500-twin"),
+            ),
+            ("vercel.com/trozl", Some("vercel.com/trozl")),
+            ("github.com/Rust-Lang", Some("github.com/rust-lang")),
+            ("github.com/a/../b", Some("github.com/b")),
+            ("github.com/a\\b", Some("github.com/a/b")),
+            ("github.com/a b", Some("github.com/a%20b")),
+            ("localhost:3000/app", Some("localhost/app")),
+            ("a.com/next=https://b.com", Some("a.com/next=https:/b.com")),
+            ("medium.com/@me", Some("medium.com/@me")),
+            ("vercel.com", None),
+            ("/a/b", None),
+            ("https:///a/b", None),
+            ("vercel.com/", None),
+            ("github.com/.", None),
+            ("vercel.com/a?b=1", None),
+            ("vercel.com/a#b", None),
+            ("github.com?x/a", None),
+            ("github.com#x/a", None),
+            ("github.com\\a/b", None),
+            ("me@github.com/a", None),
+            ("*.vercel.com/a", None),
+        ] {
+            assert_eq!(path_scope(said).as_deref(), kept, "{said}");
+        }
+    }
+
+    #[test]
+    fn the_picker_steps_the_path_one_segment_at_a_time_along_the_link() {
+        let whole =
+            whole_path("https://vercel.com/trozl/m4500-twin/settings?tab=env#x").expect("a path");
+        assert_eq!(whole, "vercel.com/trozl/m4500-twin/settings");
+        let step = |at: &str, delta| step_path(at, &whole, delta);
+        assert_eq!(
+            step("vercel.com/trozl", 1).as_deref(),
+            Some("vercel.com/trozl/m4500-twin")
+        );
+        assert_eq!(
+            step("vercel.com/Trozl/m4500-twin", 1).as_deref(),
+            Some("vercel.com/trozl/m4500-twin/settings")
+        );
+        assert_eq!(
+            step("vercel.com/trozl/m4500-twin/settings", 1),
+            None,
+            "the whole link"
+        );
+        assert_eq!(
+            step("vercel.com/trozl/m4500-twin", -1).as_deref(),
+            Some("vercel.com/trozl")
+        );
+        assert_eq!(
+            step("vercel.com/trozl", -1),
+            None,
+            "a path keeps one segment"
+        );
+        assert_eq!(
+            step("vercel.com/other/a", 1),
+            None,
+            "typed away from the link"
+        );
+        assert_eq!(
+            step("vercel.com/other/a", -1).as_deref(),
+            Some("vercel.com/other")
+        );
+        assert_eq!(step("github.com/trozl", 1), None, "another host");
+        assert_eq!(step("not a path", 1), None);
+        assert_eq!(whole_path("https://vercel.com/"), None);
+    }
+
+    #[test]
+    fn a_path_covers_its_host_on_any_port_and_never_another_host() {
+        assert!(under_path("https://localhost:3000/app/x", "localhost/app"));
+        assert!(under_path("http://localhost:3001/App", "localhost/app"));
+        assert!(!under_path("https://localhost/apps", "localhost/app"));
+        assert!(!under_path("https://evil.test/app", "localhost/app"));
+        assert!(!under_path("https://localhost/app", "localhost"));
+        assert!(!under_path("not a link", "localhost/app"));
     }
 }

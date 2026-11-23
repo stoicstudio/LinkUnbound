@@ -11,7 +11,7 @@ mod welcome;
 use editing::{BrowserView, Edit, added, edited, free_id, hidden_in, readable, views, without};
 use linkunbound_core::{
     Browser, Language, Preferences, Rule, Scope, Store, Strings, Target, host_of, is_public_suffix,
-    merge, normalise, same_name, site_of,
+    is_scheme, merge, normalise, path_scope, same_name, site_of,
 };
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
@@ -87,13 +87,6 @@ struct RuleView {
     resolved: bool,
 }
 
-fn is_scheme(said: &str) -> bool {
-    said.starts_with(|c: char| c.is_ascii_alphabetic())
-        && said
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '+' | '-' | '.'))
-}
-
 /// What the picker would have saved for the app typed: on a Mac its bundle id when one is
 /// installed by that name, so the rule outlives a change of language; otherwise the name.
 fn app_key(said: &str) -> String {
@@ -143,6 +136,7 @@ fn describe(rule: &Rule, browsers: &[Browser]) -> RuleView {
         Scope::Url(u) => ("url", u.clone()),
         Scope::Host(h) => ("host", h.clone()),
         Scope::Site(d) => ("site", d.clone()),
+        Scope::Path(p) => ("path", p.clone()),
     };
     // A profile that is gone is a rule that never fires, however present its browser.
     let resolved = found.is_some() && (rule.target.profile_id.is_none() || profile.is_some());
@@ -237,6 +231,7 @@ fn rule_from(
         }
         Ok(site)
     };
+    let path_named = || path_scope(said).ok_or("ruleValueNotPath");
     let (scope, source_app) = match kind {
         "url" => {
             let url = normalise(said).ok_or("ruleValueNotUrl")?;
@@ -244,6 +239,7 @@ fn rule_from(
         }
         "host" => (Scope::Host(host_named()?), None),
         "site" => (Scope::Site(site_named()?), None),
+        "path" => (Scope::Path(path_named()?), None),
         // «Slack» and «Slack.exe» both mean the app somebody sees in «Desde …».
         "app" => (Scope::Any, Some(app_key(said))),
         _ => return Err("ruleKindUnknown"),
@@ -1309,6 +1305,10 @@ mod tests {
         let all = vec![with_profiles("chrome", &["Default"])];
         let chrome = || aimed("chrome", None);
 
+        let path = |said| rule_from("path", said, chrome(), false, &all).map(|r| r.scope);
+        assert_eq!(path("github.com"), Err("ruleValueNotPath"));
+        let tidied = Scope::Path("github.com/a".to_owned());
+        assert_eq!(path("GitHub.com/A/"), Ok(tidied));
         assert_eq!(
             rule_from("url", "   ", chrome(), false, &all),
             Err("ruleValueEmpty")

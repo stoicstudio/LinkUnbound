@@ -97,6 +97,7 @@ const ES = {
   kindUrl: "Esta URL",
   kindHost: "Subdominio",
   kindSite: "Sitio",
+  kindPath: "Ruta",
   kindFrom: "Desde",
   rulesEmptyTitle: "Todavía no hay ninguna regla",
   rulesEmptyBody:
@@ -107,10 +108,12 @@ const ES = {
   ruleNewKindUrl: "Esta URL exacta",
   ruleNewKindHost: "Este dominio",
   ruleNewKindSite: "Todo el sitio",
+  ruleNewKindPath: "Lo que empieza por esta ruta",
   ruleNewKindApp: "Los enlaces de una aplicación",
   ruleNewValueUrl: "https://docs.google.com/document/…",
   ruleNewValueHost: "docs.google.com",
   ruleNewValueSite: "google.com",
+  ruleNewValuePath: "github.com/rust-lang",
   ruleNewValueApp: "Slack (como lo nombra el selector: «Desde …»)",
   ruleNewBrowser: "Abrir en",
   ruleNewPrivate: "En ventana privada",
@@ -266,6 +269,7 @@ const ES = {
   ruleValueEmpty: "Escribe a qué se aplica la regla",
   ruleValueNotUrl: "Eso no es una dirección completa; empieza por https://",
   ruleValueNotHost: "Eso no es un dominio; prueba con algo como docs.google.com",
+  ruleValueNotPath: "Escribe un dominio y una ruta, como github.com/rust-lang",
   ruleValueNotSite:
     "Un nombre suelto no es un sitio; elige «Subdominio» o escribe un dominio como docs.google.com",
   ruleValueIsSuffix:
@@ -456,6 +460,7 @@ const EN: Record<Key, string> = {
   kindUrl: "This URL",
   kindHost: "Subdomain",
   kindSite: "Site",
+  kindPath: "Path",
   kindFrom: "From",
   rulesEmptyTitle: "No rules yet",
   rulesEmptyBody:
@@ -466,10 +471,12 @@ const EN: Record<Key, string> = {
   ruleNewKindUrl: "This exact URL",
   ruleNewKindHost: "This domain",
   ruleNewKindSite: "The whole site",
+  ruleNewKindPath: "Everything under this path",
   ruleNewKindApp: "Links from an application",
   ruleNewValueUrl: "https://docs.google.com/document/…",
   ruleNewValueHost: "docs.google.com",
   ruleNewValueSite: "google.com",
+  ruleNewValuePath: "github.com/rust-lang",
   ruleNewValueApp: "Slack (as the picker names it: «From …»)",
   ruleNewBrowser: "Open in",
   ruleNewPrivate: "In a private window",
@@ -625,6 +632,7 @@ const EN: Record<Key, string> = {
   ruleValueEmpty: "Say what the rule applies to",
   ruleValueNotUrl: "That is not a full address; start with https://",
   ruleValueNotHost: "That is not a domain; try something like docs.google.com",
+  ruleValueNotPath: "Type a domain and a path, like github.com/rust-lang",
   ruleValueNotSite:
     "A lone name is not a site; pick «Subdomain» or type a domain like docs.google.com",
   ruleValueIsSuffix: "Many sites share that ending; name one of them, like bbc.co.uk",

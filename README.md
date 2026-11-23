@@ -59,7 +59,7 @@
 
 **LinkUnbound** is a free, open source **browser picker** for Windows and macOS — a small tool that makes itself the default browser and then asks *you* which real browser should open each link. Click a link in Teams, Outlook, Slack, Discord, a PDF, a terminal, anywhere: if you have a rule for it, the right browser opens at once; if not, a little **browser chooser** pops up next to your cursor and you pick with a click or a key.
 
-It is the missing piece for anyone who lives with more than one browser: work in one, personal life in another, a client's tools in a third profile. Instead of changing the system default every week, you set a **rule per site, per subdomain, per exact address or per app** — "everything from Slack in Brave", "docs.google.com in the work profile of Chrome" — and the rest goes through the picker.
+It is the missing piece for anyone who lives with more than one browser: work in one, personal life in another, a client's tools in a third profile. Instead of changing the system default every week, you set a **rule per site, per subdomain, per path, per exact address or per app** — "everything from Slack in Brave", "docs.google.com in the work profile of Chrome" — and the rest goes through the picker.
 
 **Why people choose LinkUnbound over other browser pickers:**
 
@@ -193,11 +193,11 @@ Since LinkUnbound is an independent open source project, the installer is signed
 
 ### Rules per site, per app and per browser profile
 
-**Set it once and never choose twice.** The picker remembers your choice at the reach you pick — this exact URL, this subdomain, the whole site, or everything a given app sends — and the **Rules** page lets you write one for a site you have not visited yet. When a rule decides, a small notice says which one, with an **Undo** for six seconds; it never takes the keyboard.
+**Set it once and never choose twice.** The picker remembers your choice at the reach you pick — this exact URL, everything under a path, this subdomain, the whole site, or everything a given app sends — and the **Rules** page lets you write one for a site you have not visited yet. When a rule decides, a small notice says which one, with an **Undo** for six seconds; it never takes the keyboard.
 
 ![Browser rules in LinkUnbound: Microsoft Teams, Slack, atlassian.net and figma.com open in Vivaldi's work profile, github.com and Google Sheets in Chrome's personal profile, and Proton Mail and YouTube in Firefox](resources/assets/store/screenshots/en/03-rules.png)
 
-A rule covers one of four reaches: an exact address, a host (`mail.google.com`), a whole site (`google.com`, which covers `mail.google.com`, `drive.google.com` and the rest), or everything a given application sends. The narrowest reach that matches wins, and a rule scoped to an app wins over any domain rule — naming the origin is a deliberate statement, and a generic domain rule should not override it silently. Between two rules of the same reach, the one higher in the Rules page answers. A rule can also ask for a private window, if the browser has one.
+A rule covers one of five reaches: an exact address, everything under a path (`github.com/rust-lang`, which covers `github.com/rust-lang/rust` and not `github.com/rust-lang-nursery`), a host (`mail.google.com`), a whole site (`google.com`, which covers `mail.google.com`, `drive.google.com` and the rest), or everything a given application sends. The narrowest reach that matches wins, and a rule scoped to an app wins over any domain rule — naming the origin is a deliberate statement, and a generic domain rule should not override it silently. Between two rules of the same reach, the one higher in the Rules page answers. A rule can also ask for a private window, if the browser has one.
 
 **Microsoft SafeLinks are unwrapped** before any rule looks at them, so rules see the real destination, and the picker names it rather than the wrapper.
 
@@ -247,7 +247,7 @@ For responsible disclosure and security contact info, see [SECURITY.md](SECURITY
 
 **Link click with a rule:** the browser opens at once, and a small notice in the corner says which rule decided, with an **Undo** for six seconds. The notice never takes the keyboard.
 
-**Link click without a rule:** a picker appears near your cursor, showing where the link comes from and the app it was clicked in. Pick a browser with the mouse or `1`–`9`. Hold **Shift** (or pin it with the *Private* pill) to open a private window. To remember the choice, pick a reach first — *this URL*, *this subdomain*, *the whole site* or *from this app* — with the arrows or the pills, then pick the browser. `Ctrl+C` copies the address; `Esc` puts the picker away. Links clicked while it is open wait their turn.
+**Link click without a rule:** a picker appears near your cursor, showing where the link comes from and the app it was clicked in. Pick a browser with the mouse or `1`–`9`. Hold **Shift** (or pin it with the *Private* pill) to open a private window. To remember the choice, pick a reach first — *this URL*, *the path*, *this subdomain*, *the whole site* or *from this app* — with the arrows or the pills, then pick the browser. *The path* offers the link's host and first segment; **−** and **+** take a segment off or add the link's next one, and *edit* lets you type it. `Ctrl+C` copies the address; `Esc` puts the picker away. Links clicked while it is open wait their turn.
 
 **Settings (tray):** double-click the tray icon or right-click → Settings. Six pages:
 

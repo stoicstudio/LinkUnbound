@@ -18,9 +18,11 @@ pub fn remember(
     private: bool,
     reach: Reaches,
     source: Option<Origin>,
+    path: Option<String>,
 ) -> bool {
     let key = source.as_ref().map(|origin| origin.key.clone());
-    let Some(rule) = rule_for(url, chosen, private, reach, key) else {
+    let Some(rule) = rule_for(url, chosen, private, reach, key).map(|r| with_path(r, reach, path))
+    else {
         return true;
     };
     store()
@@ -30,6 +32,14 @@ pub fn remember(
         })
         .map_err(|why| notice::noted("rules", &why.to_string()))
         .is_ok()
+}
+
+/// The path typed or stepped in the foot stands in for the one the link offered.
+fn with_path(mut rule: Rule, reach: Reaches, path: Option<String>) -> Rule {
+    if let (Reaches::Path, Some(path)) = (reach, path) {
+        rule.scope = linkunbound_core::Scope::Path(path);
+    }
+    rule
 }
 
 /// `None` when there is nothing to remember. Only the origin reach carries the
@@ -61,7 +71,7 @@ pub fn rule_for(
 
 #[cfg(test)]
 mod tests {
-    use super::rule_for;
+    use super::{rule_for, with_path};
     use linkunbound_core::Scope;
     use linkunbound_shell::{Listed, Reaches};
 
@@ -144,5 +154,23 @@ mod tests {
         assert_eq!(rule.target.browser_id, "chrome");
         assert_eq!(rule.target.profile_id.as_deref(), Some("Default"));
         assert!(rule.private);
+    }
+
+    #[test]
+    fn the_path_in_the_foot_is_the_one_remembered() {
+        let url = "https://github.com/a/b/c";
+        let offered = || rule_for(url, &chosen(), false, Reaches::Path, None).expect("a rule");
+        assert_eq!(offered().scope, Scope::Path("github.com/a".to_owned()));
+        let typed = Some("github.com/a/b".to_owned());
+        let path = |reach| with_path(offered(), reach, typed.clone()).scope;
+        assert_eq!(
+            path(Reaches::Path),
+            Scope::Path("github.com/a/b".to_owned())
+        );
+        assert_eq!(path(Reaches::Site), Scope::Path("github.com/a".to_owned()));
+        assert_eq!(
+            with_path(offered(), Reaches::Path, None).scope,
+            offered().scope
+        );
     }
 }

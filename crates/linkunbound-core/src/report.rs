@@ -31,6 +31,7 @@ fn describe(scope: &Scope, words: &Strings) -> String {
         Scope::Url(u) => Strings::fill(words.report_the_link, &redact(u, words.report_redacted)),
         Scope::Host(h) => Strings::fill(words.report_the_host, h),
         Scope::Site(d) => Strings::fill(words.report_the_site, d),
+        Scope::Path(p) => Strings::fill(words.report_the_path, p),
     }
 }
 
