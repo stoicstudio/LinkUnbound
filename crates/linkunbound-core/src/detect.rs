@@ -56,7 +56,7 @@ type Chromium = (&'static str, &'static str, Option<&'static str>);
 /// for a Beta offers profiles it does not have, and launching one creates it empty. Most specific
 /// first.
 #[rustfmt::skip]
-const CHROMIUM: [Chromium; 23] = [
+const CHROMIUM: [Chromium; 24] = [
     ("google chrome canary", "Google/Chrome Canary", Some(r"Google\Chrome SxS")),
     ("google chrome beta", "Google/Chrome Beta", Some(r"Google\Chrome Beta")),
     ("google chrome dev", "Google/Chrome Dev", Some(r"Google\Chrome Dev")),
@@ -75,6 +75,7 @@ const CHROMIUM: [Chromium; 23] = [
     ("vivaldi snapshot", "Vivaldi Snapshot", Some("Vivaldi Snapshot")),
     ("vivaldi", "Vivaldi", Some("Vivaldi")),
     ("thorium", "Thorium", Some("Thorium")),
+    ("comet", "Comet", Some(r"Perplexity\Comet")),
     ("arc", "Arc/User Data", None),
     ("opera gx", "com.operasoftware.OperaGX", None),
     ("opera beta", "com.operasoftware.OperaNext", None),
@@ -134,6 +135,7 @@ mod tests {
             (r"C:\Users\a\AppData\Local\Vivaldi\Application\vivaldi.exe", Some("Vivaldi")),
             (r"C:\Users\a\AppData\Local\Vivaldi Snapshot\Application\vivaldi.exe", Some("Vivaldi Snapshot")),
             (r"C:\Users\a\AppData\Local\Thorium\Application\thorium.exe", Some("Thorium")),
+            (r"C:\Users\a\AppData\Local\Perplexity\Comet\Application\comet.exe", Some(r"Perplexity\Comet")),
             (r"C:\Program Files\Mozilla Firefox\firefox.exe", None),
             (r"D:\Portable\chrome\chrome.exe", None),
         ] {
@@ -159,6 +161,7 @@ mod tests {
             ("Arc.app", Some("Arc/User Data")),
             ("Vivaldi Snapshot.app", Some("Vivaldi Snapshot")),
             ("Thorium.app", Some("Thorium")),
+            ("Comet.app", Some("Comet")),
             ("Opera Beta.app", Some("com.operasoftware.OperaNext")),
             ("Opera Developer.app", Some("com.operasoftware.OperaDeveloper")),
             ("Archive Utility.app", None),
